@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+bold=$(tput bold) # Bold Text
+normal=$(tput sgr0) # Reset text
+sunder=$(tput smul) # Start Underline
+eunder=$(tput rmul) # End Underline
+# Get Timestamp
+timestamp() {
+  date +"%s"
+}
+# Help Text
+help() {
+    echo -e "\n${bold}${sunder}AWS Role CLI:${eunder}${normal}\n"
+
+    echo -e "${bold}Note: This tool requires bash version >= 4.0${normal}\n"
+    echo -e "-h, --help\n\tDisplay instructions related to CLI tool";
+    echo -e "-s, --store\n\tStore session credentials";
+    echo -e "-c, --creds\n\tDisplay stored session credentials";
+    echo -e "--sts\n\tDisplay current STS caller identity";
+    echo -e "\n--eks[={cluster_name}]\n\tSetup the EKS cluster in kube config.\n\n  Usage:\n\tawsr --eks : Setup the 'dev-apse2-main' cluster by default.\n\n\tawsr --eks={cluster_name}: Setup a given eks cluster.";
+    echo -e "\n${bold}** zip-role-readonly **${normal}\n"
+    echo -e "${bold}--zip-role-readonly-labs${normal}\n\tAssume zip-role-readonly Labs Role";
+    echo -e "\n"
+}
+# Exit when no args present
+if [ 0 -eq $# ]; then
+    help;
+    echo -e "\n"
+    exit;
+fi
+declare -A AWS_ROLE_NAMES=(
+    ["zip-role-readonly"]="zip-role-readonly"
+    ["zip-role-admin"]="zip-role-admin"
+)
+declare -A AWS_ACOUNT_IDS=(
+    ["labs-v1"]="add_aws_account_id"
+)
+AWS_ACOUNT_ID=""
+AWS_ROLE_NAME=""
+ARGUMENT=""
+VALUE=""
+# Assign zip-role-readonly role and account id.
+assign_zip-role-readonly_roles() {
+    AWS_ACOUNT_ID="${AWS_ACOUNT_IDS[$1]}"
+    AWS_ROLE_NAME="${AWS_ROLE_NAMES[zip-role-readonly]}"
+}
+# Assign zip-role-admin role and account id.
+assign_zip-role-admin_roles() {
+    AWS_ACOUNT_ID="${AWS_ACOUNT_IDS[$1]}"
+    AWS_ROLE_NAME="${AWS_ROLE_NAMES[zip-role-admin]}"
+}
+# Print the chosen role and account
+print_acc_role() {
+    echo -e "\nAWS Account Number: $AWS_ACOUNT_ID";
+    echo -e "AWS Role Name: $AWS_ROLE_NAME\n";
+}
+# Iterate through the command line args
+for option in "$@"
+do
+    if [[ "$option" == *"="* ]]; then
+        IFS="="
+        read -ra ARGS <<< "$option"
+
+        # Assign the argument
+        ARGUMENT=${ARGS[0]}
+
+        # Check if value is not null or empty
+        if [ ! -z ${ARGS[1]} ]; then
+            # Assign the value when present
+            VALUE=${ARGS[1]}
+        fi
+    else
+        ARGUMENT=$option
+    fi;
+    case "$ARGUMENT" in
+        -h|--help)
+            help
+            exit 0;
+        ;;
+        --eks)
+            source ./aws/eks.sh $VALUE
+            exit 0;
+        ;;
+        --sts)
+            source ./aws/sts.sh;
+            exit 0;
+        ;;
+        -s|--store)
+            source ./aws/cred.sh
+            exit 0;
+        ;;
+        -c|--creds)
+            cat ./.tmp-creds
+            exit 0;
+        ;;
+
+    
+    --zip-role-admin-labs-v1)
+        assign_zip-role-admin_roles "labs-v1";
+    ;;
+        *)
+            help;
+            exit 0;
+        ;;
+    esac
+done
+# Print the selected account and role
+print_acc_role
+# Assume the given role
+CREDENTIALS=`aws sts assume-role --role-arn "arn:aws:iam::${AWS_ACOUNT_ID}:role/${AWS_ROLE_NAME}" --role-session-name "aws-cli-session-$(timestamp)"`
+# Print credentials
+printf "\n"
+echo "export AWS_ACCESS_KEY_ID=`echo $CREDENTIALS | jq .Credentials.AccessKeyId`"
+echo "export AWS_SECRET_ACCESS_KEY=`echo $CREDENTIALS | jq .Credentials.SecretAccessKey`"
+echo "export AWS_SESSION_TOKEN=`echo $CREDENTIALS | jq .Credentials.SessionToken`"
+printf "\n"%
